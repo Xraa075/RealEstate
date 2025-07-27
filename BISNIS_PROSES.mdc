@@ -1,0 +1,178 @@
+---
+alwaysApply: true
+---
+
+# 📘 Dokumentasi Alur Bisnis & Aturan Sistem
+## Aplikasi Pengelolaan Aset Tanah Real Estate
+### Teknologi: Laravel 10 + PostgreSQL + PostGIS + Leaflet JS + Breeze
+
+---
+
+## 1. 🎯 Tujuan Sistem
+Membangun aplikasi web untuk manajemen aset tanah (real estate) dengan integrasi peta interaktif, sistem peran pengguna, dan alur persetujuan data.
+
+---
+
+## 2. 👤 Peran & Hak Akses
+
+| Peran                  | Lihat Data | Tambah Data | Ubah Data | Hapus Data | Perlu Persetujuan |
+|------------------------|------------|-------------|-----------|------------|-------------------|
+| Administrator          | ✅          | ✅           | ✅         | ✅          | ❌                |
+| Manajer Aset           | ✅          | ✅           | ✅         | ✅          | ❌                |
+| Surveyor (Staf Lapangan) | ✅        | ✅ (request) | ✅ (request) | ❌        | ✅ (add/edit)     |
+| Pengguna Umum (Klien)  | ✅ (publik) | ❌           | ❌         | ❌          | ❌                |
+
+**Catatan:** Surveyor hanya dapat mengajukan data. Data akan tampil jika telah disetujui oleh admin/manajer.
+
+---
+
+## 3. 🧩 Struktur Tabel Utama
+
+### Tabel: `land_assets`
+Digunakan untuk menyimpan data aset yang sudah disetujui.
+
+```sql
+id UUID PRIMARY KEY
+asset_code VARCHAR UNIQUE
+name VARCHAR
+description TEXT
+area_sqm NUMERIC(10,2)
+address TEXT
+status VARCHAR(50) DEFAULT 'tersedia' -- tersedia, disewakan, terjual, dalam_sengketa, dll
+value NUMERIC(15,2)
+geometry GEOMETRY(Polygon, 4326)
+owner_name VARCHAR
+owner_contact VARCHAR
+created_by UUID
+updated_by UUID
+created_at TIMESTAMP
+updated_at TIMESTAMP
+```
+
+### Tabel: `asset_requests`
+
+```sql
+id UUID PRIMARY KEY
+type VARCHAR(20) -- 'create' atau 'update'
+asset_id UUID NULL -- NULL jika 'create'
+proposed_data JSONB NOT NULL
+requested_by UUID REFERENCES users(id)
+approved_by UUID NULL
+status VARCHAR(20) DEFAULT 'pending' -- pending, approved, rejected
+notes TEXT NULL
+reviewed_at TIMESTAMP NULL
+created_at TIMESTAMP
+updated_at TIMESTAMP
+deleted_at TIMESTAMP NULL -- soft delete opsional
+```
+
+### Tabel: `asset_documents`
+
+```sql
+id UUID PRIMARY KEY
+asset_id UUID REFERENCES land_assets(id)
+document_name VARCHAR
+document_type VARCHAR
+file_path VARCHAR
+issue_date DATE
+expiry_date DATE NULL
+created_at TIMESTAMP
+updated_at TIMESTAMP
+```
+
+---
+
+## 4. 🔄 Alur Proses Bisnis
+
+### Tambah Aset oleh Surveyor
+- Request masuk ke `asset_requests`
+- Diverifikasi admin/manajer
+- Jika disetujui → data masuk `land_assets`
+
+### Update Aset oleh Surveyor
+- Sama dengan create, tapi `type = update`
+
+### Tambah/Edit Aset oleh Admin/Manajer
+- Langsung masuk dan diperbarui ke `land_assets`
+
+---
+
+## 5. 🌐 Struktur URL & Routing Berdasarkan Role
+
+Setiap role memiliki **direktori dashboard masing-masing** dan **tidak boleh mengakses** direktori milik role lain.
+
+### Admin
+```
+/admin/dashboard/assets
+/admin/dashboard/asset-requests
+/admin/dashboard/users
+```
+### Manajer Aset
+```
+/manager/dashboard/assets
+/manager/dashboard/asset-requests
+```
+### Surveyor
+```
+/surveyor/dashboard/assets/view
+/surveyor/dashboard/request/create
+/surveyor/dashboard/request/edit
+/surveyor/dashboard/my-requests
+```
+
+**Aturan:** Middleware wajib memverifikasi role user sebelum mengizinkan akses ke URL dashboard tertentu.
+
+---
+
+## 6. 🔐 Policy & Middleware
+
+- Gunakan `Gate` dan `Policy` Laravel untuk membatasi akses berdasarkan role.
+- Middleware untuk validasi prefix URL dan role user.
+
+```php
+// Contoh middleware
+if (auth()->user()->role !== 'admin') {
+    abort(403);
+}
+```
+
+---
+
+## 7. 🔔 Notifikasi & Audit
+
+### Notification (opsional)
+- Notifikasi request baru → admin/manajer
+- Notifikasi hasil verifikasi → surveyor
+
+### Log Aktivitas
+```sql
+activity_logs (
+    user_id UUID,
+    activity_type VARCHAR(50),
+    description TEXT,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    created_at TIMESTAMP
+)
+```
+
+---
+
+## 8. 🔧 Teknologi & Tools
+
+| Komponen     | Teknologi                |
+|--------------|---------------------------|
+| Backend      | Laravel 10 (MVC + REST API) |
+| Auth         | Laravel Breeze            |
+| Frontend Map | Leaflet JS (+ leaflet.draw) |
+| Database     | PostgreSQL + PostGIS      |
+| UI           | Tailwind (default Breeze) |
+| ACL          | Laravel Gate & Policy     |
+| Dokumen File | Laravel Storage           |
+| Audit Trail  | Custom Table              |
+| Pencarian    | Laravel Scout (opsional)  |
+| Role-Based   | Spatie Laravel Permission (opsional) |
+
+---
+
+**Dokumentasi ini menggambarkan sistem berbasis peran dengan otorisasi penuh untuk menjaga batasan akses antar direktori pengguna.**
