@@ -70,15 +70,16 @@ class AssetController extends Controller
     public function store(Request $request)
     {
                         $validated = $request->validate([
+            'asset_code' => 'required|string|unique:land_assets,asset_code',
             'name' => 'required|string|max:255',
             'description' => 'required|string',
-            'location' => 'required|string|max:255',
+            'address' => 'required|string',
             'area_sqm' => 'nullable|numeric|min:0',
             'geometry' => 'required|string',
-            'asset_type' => 'required|in:residential,commercial,agricultural,industrial',
-            'status' => 'required|in:available,sold,reserved',
-            'purchase_price' => 'nullable|numeric|min:0',
-            'market_price' => 'required|numeric|min:0',
+            'status' => 'required|in:tersedia,disewakan,terjual,dalam_sengketa',
+            'owner_name' => 'required|string|max:255',
+            'owner_contact' => 'required|string|max:255',
+            'value' => 'required|numeric|min:0',
         ]);
 
         // Validate that geometry contains valid data
